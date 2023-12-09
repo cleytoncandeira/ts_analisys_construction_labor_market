@@ -1,0 +1,295 @@
+---
+title: "Time Series Construction Labor in Tucurui and Altamira"
+output:
+  html_notebook: default
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+In this R notebook, I will conduct a Time Series Analysis of Labor Turnover in the cities of Tucuruí and Altamira, situated in the state of Pará, Brazil.
+
+## Loading Libraries
+
+```{r}
+library(readr)
+library(tidyverse)
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+library(forecast)
+library(tseries)
+library(purrr)
+library(reshape2)
+library(htmltools)
+library(knitr)
+library(FactoMineR)
+library(factoextra)
+library(MASS)
+
+```
+
+## Read
+
+```{r}
+
+df <- read_csv("rais_altamira_tucurui_updated.csv")
+
+```
+
+## Check the structure of the dataframe, look for missing values, and check duplicate rows
+
+```{r}
+str(df)
+```
+
+```{r}
+missing_summary <- summary(is.na(df))
+print(missing_summary)
+```
+
+```{r}
+df[is.na(df)] <- 0
+```
+
+```{r}
+df <- df %>% distinct()
+```
+
+## Analyze the time series
+
+```{r}
+pander::pander(summary(df))
+```
+
+Look at Tucurui and Altamira Turnover
+
+```{r, fig.width = 15, fig.height=9.5}
+gg <- ggplot() +
+  geom_line(data = df, aes(x = Time, y = TurnoverAltamira, color = "TurnoverAltamira")) +
+  geom_line(data = df, aes(x = Time, y = TurnoverTucurui, color = "TurnoverTucurui")) +
+  geom_point(data = df, aes(x = Time, y = TurnoverAltamira, color = "TurnoverAltamira")) +
+  geom_point(data = df, aes(x = Time, y = TurnoverTucurui, color = "TurnoverTucurui")) +
+  labs(title = "Turnover Time Series",
+       x = "Time",
+       y = "Turnover") +
+  scale_color_manual(values = c("TurnoverAltamira" = "red", "TurnoverTucurui" = "orange")) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.title = element_text(size = 14),
+    axis.text = element_text(size = 14),
+    legend.title = element_text(size = 14),
+    legend.text = element_text(size = 12),
+    plot.margin = margin(1, 1, 1, 1, "cm")
+  )
+
+gg
+```
+
+```{r}
+# Function to perform normality and stochastic tests, ignoring NAs
+perform_tests <- function(data, variable) {
+  if (variable == "Time") {
+    return(NULL)  # Ignore the "Time" variable
+  }
+  
+    var_data <- data[[variable]]
+  
+  # Check if the variable is numeric
+  if (!is.numeric(var_data)) {
+    return(NULL)  # Ignore non-numeric variables
+  }
+  
+  var_data <- var_data[!is.na(var_data)]
+  
+  # Normality Test (Shapiro-Wilk)
+  shapiro_test <- suppressWarnings(shapiro.test(var_data))
+  shapiro_result <- ifelse(shapiro_test$p.value < 0.001, "Reject H0", "Do not reject H0")
+  
+  # Stochastic Test (Dickey-Fuller)
+  adf_test <- suppressWarnings(adf.test(var_data))
+  adf_result <- ifelse(adf_test$p.value < 0.05, "Reject H0", "Do not reject H0")
+  
+  return(data.frame(
+    Variable = variable,
+    Shapiro_P_Value = shapiro_test$p.value,
+    AD_P_Value = adf_test$p.value,
+    Shapiro_Result = shapiro_result,
+    AD_Result = adf_result
+  ))
+}
+```
+
+```{r}
+# List of variables to be tested
+variables_to_test <- colnames(df)
+
+# Test results for all variables, excluding "Time"
+test_results <- lapply(variables_to_test, function(var) {
+  perform_tests(df, var)
+})
+
+test_results <- test_results[!sapply(test_results, is.null)]
+final_results <- do.call(rbind, test_results)
+
+# View the results
+pander::panderOptions('table.split.table', Inf)
+pander::panderOptions('table.style', 'rmarkdown')
+pander::pander(final_results)
+```
+
+```{r}
+hist(df$TurnoverAltamira)
+hist(df$TurnoverTucurui)
+```
+
+
+```{r}
+transform_var <- function(x) {
+ # transforming the variable into log
+ log_x <- log(x)
+ # transforming the variable into squared
+ sq_x <- x^2
+ # returning all the transformed variables
+ return(list(log = log_x, sq = sq_x))
+}
+
+plot_gaussian <- function(x) {
+ # creating a gaussian plot for the transformed variable
+ hist_x <- hist(x, main=paste("Gaussian", var), xlab="Value", ylab="Frequency", col="skyblue", border="black")
+ # returning the plot
+ return(list(plot = hist_x))
+}
+```
+
+
+```{r}
+transformed_vars <- transform_var(df$TurnoverTucurui)
+# creating a gaussian plot for each transformed variable
+par(mfrow=c(1,2))
+for (var in names(transformed_vars)) {
+ plot_gaussian_result <- plot_gaussian(transformed_vars[[var]])
+ print(plot_gaussian_result)
+}
+```
+
+
+```{r}
+transformed_vars <- transform_var(df$TurnoverAltamira)
+# creating a gaussian plot for each transformed variable
+par(mfrow=c(1,2))
+for (var in names(transformed_vars)) {
+ plot_gaussian_result <- plot_gaussian(transformed_vars[[var]])
+ print(plot_gaussian_result)
+}
+```
+
+## Decompose
+
+```{r}
+ts_tucurui <- ts(df$TurnoverTucurui, frequency = 12)  # mont freq (12)
+ts_altamira <- ts(df$TurnoverAltamira, frequency = 12)  # mont freq (12)
+```
+
+```{r}
+decomposeTucurui <- stl(ts_tucurui, s.window = "periodic")
+autoplot(decomposeTucurui)
+```
+
+```{r}
+decomposeAltamira <- stl(ts_altamira, s.window = "periodic")
+autoplot(decomposeAltamira)
+```
+
+## Autocorrelation
+
+```{r}
+plot(Acf(ts_tucurui), main = "Autocorrelation Function of Turnover Tucurui")
+```
+
+```{r}
+plot(Acf(ts_altamira), main = "Autocorrelation Function of Turnover Altamira")
+```
+
+## Correlation Analysis
+
+```{r}
+df_tucurui <- df %>%
+  dplyr::select(matches("Tucurui"))
+
+df_altamira <- df %>%
+  dplyr::select(matches("Altamira"))
+```
+
+```{r, fig.width = 30, fig.height=30}
+corr_mat_tucurui <- round(cor(scale(df_tucurui)), 2)
+
+dist <- as.dist((1-corr_mat_tucurui)/2)
+ 
+# hierarchical clustering the dist matrix
+hc <- hclust(dist)
+corr_mat <-corr_mat_tucurui[hc$order, hc$order]
+ 
+# reduce the size of correlation matrix
+melted_corr_mat_tucurui <- melt(corr_mat)
+ 
+ggplot(data = melted_corr_mat_tucurui, aes(x = Var1, y = Var2, fill = value)) + 
+  geom_tile() +
+  geom_text(aes(Var2, Var1, label = value), color = "black", size = 4) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+```
+
+```{r, fig.width = 30, fig.height=30}
+corr_mat_altamira <- round(cor(scale(df_altamira)), 2)
+
+dist <- as.dist((1-corr_mat_altamira)/2)
+ 
+# hierarchical clustering the dist matrix
+hc <- hclust(dist)
+corr_mat <-corr_mat_altamira[hc$order, hc$order]
+ 
+# reduce the size of correlation matrix
+melted_corr_mat_altamira <- melt(corr_mat)
+ 
+ggplot(data = melted_corr_mat_altamira, aes(x = Var1, y = Var2, fill = value)) + 
+  geom_tile() +
+  geom_text(aes(Var2, Var1, label = value), color = "black", size = 4) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) 
+```
+
+## Principal Components Analisys
+
+```{r, echo=FALSE}
+include_graphics("https://images.datacamp.com/image/upload/v1676290161/5_main_steps_for_computing_principal_components_7aa5efa2ad.png")
+```
+
+```{r}
+#Applying PCA
+data_tucurui.pca <- princomp(corr_mat_tucurui)
+summary(data_tucurui.pca)
+```
+
+```{r}
+data_altamira.pca <- princomp(corr_mat_altamira)
+summary(data_altamira.pca)
+```
+
+
+```{r}
+fviz_eig(data_tucurui.pca, addlabels = TRUE)
+```
+```{r}
+fviz_eig(data_altamira.pca, addlabels = TRUE)
+```
+
+```{r}
+data_tucurui.pca$loadings[, 1:2]
+```
+
+```{r}
+data_altamira.pca$loadings[, 1:2]
+
+```
+
