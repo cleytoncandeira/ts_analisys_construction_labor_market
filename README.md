@@ -2,7 +2,7 @@
 
 📊 **Project Overview**
 
-This repository contains an R notebook dedicated to the time series analysis of labor turnover in Tucuruí and Altamira, two cities in the state of Pará, Brazil. This comprehensive study utilizes various statistical and machine learning techniques to understand and forecast labor market trends in these regions. An academic version of this work has been published in Portuguese, accessible [here](https://periodicos.ufpa.br/index.php/ncn/article/view/12147).
+This repository contains an R and Python notebooks dedicated to the time series analysis of labor turnover in Tucuruí and Altamira, two cities in the state of Pará, Brazil. This comprehensive study utilizes various statistical and machine learning techniques to understand and forecast labor market trends in these regions. An academic version of this work has been published in Portuguese, accessible [here](https://periodicos.ufpa.br/index.php/ncn/article/view/12147).
 
 ## 📚 Libraries
 
